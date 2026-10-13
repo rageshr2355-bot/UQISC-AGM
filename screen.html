@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UQISC AGM — Big Screen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Gloock&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/theme.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  body { font-size: 1.6vh; cursor: default; }
+  .stage { position: fixed; inset: 0; display: grid; place-items: center; padding: 3vh 4vw; }
+  .frame { position: fixed; inset: 1.6vh; border: 2px solid var(--gold-dim); border-radius: 1vh; pointer-events: none; }
+  .frame::before { content: ""; position: absolute; inset: 0.8vh; border: 1px solid rgba(233,185,73,.15); border-radius: 0.6vh; }
+  .scene { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; animation: sceneIn .8s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes sceneIn { from { opacity: 0; transform: scale(.97); filter: blur(6px); } }
+
+  /* waiting */
+  .waiting-wrap { display: flex; align-items: center; justify-content: center; gap: 6vw; width: min(1700px, 100%); }
+  .waiting.arch { width: min(110vh, 100%); flex: 0 1 auto; padding: 18vh 8vh 8vh; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2.6vh; }
+  .waiting .logo { width: 24vh; }
+  .waiting h1 { font-size: 14vh; }
+  .waiting .sub { font-size: 3.4vh; color: var(--cream-dim); font-weight: 500; }
+  .waiting .sunmark { width: 9vh; height: 9vh; color: var(--gold); margin-top: 1vh; }
+  .waiting .sunmark g { animation: spin 40s linear infinite; transform-origin: 50px 50px; }
+  /* Smaller arch when it shares the screen with the QR panel */
+  .waiting-wrap:has(.join) .waiting.arch { width: min(80vh, 100%); padding: 13vh 6vh 6vh; gap: 2vh; }
+  .waiting-wrap:has(.join) .waiting h1 { font-size: 10.5vh; }
+  .waiting-wrap:has(.join) .waiting .logo { width: 18vh; }
+  .waiting-wrap:has(.join) .waiting .sunmark { width: 7vh; height: 7vh; margin-top: 0; }
+  .join { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2.4vh; text-align: center;
+    padding: 4.5vh 4.5vh 4vh; border-radius: 3vh; background: var(--panel); border: 2px solid var(--gold-dim);
+    box-shadow: 0 3vh 8vh rgba(0,0,0,.45); }
+  .join h2 { font-size: 6vh; }
+  .join .qr { padding: 2vh; background: var(--cream); border-radius: 2vh; border: .5vh solid var(--gold); line-height: 0; }
+  .join .qr img, .join .qr canvas { width: 38vh !important; height: 38vh !important; }
+  .join p { margin: 0; font-size: 2.6vh; color: var(--cream-dim); max-width: 22em; line-height: 1.4; }
+  .join p b { color: var(--gold); }
+  .count { font-size: 2.6vh; color: var(--cream-dim); }
+  .count b { color: var(--gold); font-size: 3.4vh; }
+
+  /* poll scenes */
+  .poll { width: min(1500px, 100%); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2vh; }
+  .poll .kicker { font-size: 2.8vh; font-weight: 600; color: var(--gold); display: flex; align-items: center; gap: 1vh; }
+  .poll h1 { font-size: 11vh; }
+  .poll .rule { font-size: 2.6vh; color: var(--cream-dim); }
+  .names { display: flex; flex-wrap: wrap; justify-content: center; gap: 2vh; margin-top: 3vh; }
+  .names div { padding: 2vh 3.4vh; border-radius: 99vh; border: 2px solid var(--gold-dim); background: rgba(20,4,7,.5); font-size: 3.6vh; font-weight: 700; }
+  .names div small { display: block; font-size: 2vh; font-weight: 500; color: var(--cream-dim); }
+  .turnout { margin-top: 4vh; font-size: 3vh; }
+  .turnout b { font-size: 6vh; color: var(--gold); font-family: var(--display); font-weight: 400; vertical-align: -0.6vh; margin-right: .6vh; }
+
+  .results { width: min(1100px, 92%); display: flex; flex-wrap: wrap; justify-content: center; gap: 2vh; margin-top: 3vh; }
+  .result { display: flex; flex-direction: column; align-items: center; gap: 1.2vh; padding: 2.4vh 4vh; border-radius: 2vh;
+    border: 2px solid var(--line); background: rgba(20,4,7,.5); font-size: 3.6vh; font-weight: 700; color: var(--cream-dim); }
+  .result.win { border-color: var(--gold); color: var(--cream); background: rgba(233,185,73,.12); font-size: 5vh;
+    box-shadow: 0 0 4vh rgba(233,185,73,.35); animation: crown .8s 1.2s cubic-bezier(.2,1.4,.4,1) both; }
+  .result.win .name { color: var(--gold); }
+  @keyframes crown { from { border-color: var(--line); background: rgba(20,4,7,.5); box-shadow: none; transform: scale(.94); } }
+  .badge { font-size: 1.8vh; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: .5vh 1.2vh; border-radius: 99vh; background: var(--gold); color: var(--maroon-950); white-space: nowrap; opacity: 0; animation: badgeIn .6s 1.6s cubic-bezier(.2,1.6,.4,1) forwards; }
+  .badge.tie { background: var(--cream); }
+  @keyframes badgeIn { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+  .notice { margin-top: 1vh; font-size: 3vh; font-weight: 700; color: var(--gold); }
+
+  /* award */
+  .award { position: relative; width: min(1200px, 100%); text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2.4vh; }
+  .award .arch { padding: 16vh 8vh 8vh; width: min(110vh, 100%); display: flex; flex-direction: column; align-items: center; gap: 2.4vh; }
+  .award .kicker { font-size: 2.8vh; font-weight: 600; letter-spacing: .3em; text-transform: uppercase; color: var(--gold); }
+  .award h2 { font-size: 7vh; }
+  .award .to { font-size: 2.6vh; color: var(--cream-dim); margin-top: 1vh; }
+  .award .recipient { font-family: var(--display); font-size: 12vh; line-height: 1; color: var(--gold); text-shadow: 0 0 6vh rgba(233,185,73,.4); animation: rise 1.2s .5s cubic-bezier(.2,.8,.2,1) both; }
+  .award .blurb { font-size: 3vh; max-width: 60ch; color: var(--cream-dim); line-height: 1.4; animation: rise 1s 1s both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(4vh); } }
+  .rays { position: absolute; left: 50%; top: 50%; width: 160vh; height: 160vh; translate: -50% -50%; z-index: -1; opacity: .18;
+    background: repeating-conic-gradient(from 0deg, var(--gold) 0 4deg, transparent 4deg 18deg);
+    mask: radial-gradient(circle, #000 0, transparent 60%); -webkit-mask: radial-gradient(circle, #000 0, transparent 60%);
+    animation: spin 80s linear infinite; }
+  .petal { position: fixed; top: -5vh; width: 1.6vh; height: 2.6vh; border-radius: 50% 50% 50% 0; background: var(--gold); opacity: .8; animation: fall linear forwards; pointer-events: none; }
+  .petal.r { background: var(--rose); }
+  @keyframes fall { to { transform: translateY(115vh) rotate(720deg); } }
+
+  .corner { position: fixed; bottom: 3.2vh; right: 4vh; display: flex; align-items: center; gap: 1.4vh; font-size: 2vh; color: var(--cream-dim); }
+  .corner b { color: var(--gold); letter-spacing: .2em; font-size: 2.6vh; }
+  .corner .logo { width: 9vh; }
+  .fs { position: fixed; top: 3vh; right: 3.5vh; opacity: 0; transition: opacity .3s; }
+  body:hover .fs { opacity: 1; }
+
+  .gate { width: min(420px, 92vw); padding: 70px 30px 34px; text-align: center; font-size: 16px; display: grid; gap: 16px; }
+  .gate .logo { margin: 0 auto; width: 120px; }
+</style>
+</head>
+<body>
+<div class="backdrop" aria-hidden="true"></div>
+<div class="frame" aria-hidden="true"></div>
+<div class="conn" id="conn" hidden><span class="dot"></span><span>Reconnecting…</span></div>
+<div class="stage" id="stage"></div>
+<button class="btn sm fs" id="fsBtn" title="Fullscreen (F)">⛶ Fullscreen</button>
+
+<script src="/common.js"></script>
+<script>
+const KEY = "uqisc_agm_admin";
+const stage = document.getElementById("stage");
+const esc = UQ.esc;
+let key = UQ.storage.get(KEY);
+let sceneKey = "", view = null;
+
+function gate(msg = "") {
+  stage.innerHTML = `<form class="arch gate" id="gate">${UQ.logo()}
+    <h1 class="display" style="font-size:38px">Big screen</h1>
+    <p class="muted" style="margin:0">Enter the admin password to start the display.</p>
+    <input class="input" type="password" id="pw" placeholder="Admin password" autofocus>
+    <p class="error-msg">${esc(msg)}</p>
+    <button class="btn primary">Start display</button></form>`;
+  document.getElementById("gate").onsubmit = async (e) => {
+    e.preventDefault();
+    const pw = document.getElementById("pw").value;
+    try { await UQ.post("/api/admin/login", {}, { "X-Admin-Key": pw }); key = pw; UQ.storage.set(KEY, pw); start(); }
+    catch (err) { gate(err.message); }
+  };
+}
+
+function waitingScene(v) {
+  const sun = `<svg class="sunmark" viewBox="0 0 100 100" aria-hidden="true"><g>
+    ${Array.from({ length: 16 }, (_, i) => `<path d="M50 4 L54 22 L46 22Z" fill="currentColor" opacity="${i % 2 ? 0.55 : 1}" transform="rotate(${i * 22.5} 50 50)"/>`).join("")}
+    <circle cx="50" cy="50" r="22" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="50" cy="50" r="13" fill="currentColor"/></g></svg>`;
+  const join = v.checkinOpen ? `<div class="join">
+      <h2 class="display">Scan to check in</h2>
+      <div class="qr" id="qr"></div>
+      <p>Then enter <b>your name</b> and the <b>code on your voting card</b></p>
+    </div>` : "";
+  return `<div class="waiting-wrap"><div class="waiting arch">${UQ.logo()}
+    <h1 class="display">${esc(v.event.title)}</h1>
+    <div class="sub">${esc(v.event.subtitle)}</div>
+    ${sun}
+    <div class="count"><b>${v.attendeeCount}</b> members checked in</div>
+  </div>${join}</div>`;
+}
+
+// Phones can't reach "localhost", so when the screen runs on the server laptop itself,
+// point the QR code at the network address the server reports instead.
+function joinUrl(v) {
+  return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? v.joinUrl : location.origin + "/";
+}
+
+function drawQr(v) {
+  const el = document.getElementById("qr");
+  if (!el) return;
+  if (!window.QRCode) return el.closest(".join")?.remove();
+  new QRCode(el, { text: joinUrl(v), width: 512, height: 512, colorDark: "#2b0a10", colorLight: "#f7ecd6", correctLevel: QRCode.CorrectLevel.M });
+  el.title = joinUrl(v);
+}
+
+function votingScene(p) {
+  const real = p.options;
+  return `<div class="poll">
+    <div class="kicker"><span class="dot pulse" style="color:var(--ok)"></span>${p.status === "open" ? "Voting now open" : "Voting closed"}</div>
+    ${p.subtitle ? `<div class="eyebrow" style="font-size:3vh">${esc(p.subtitle)}</div>` : ""}
+    <h1 class="display">${esc(p.title)}</h1>
+    <div class="rule">${p.maxChoices > 1 ? `Choose up to ${p.maxChoices}` : "Choose one"} · vote on your phone</div>
+    <div class="names">${real.map((o) => `<div>${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ""}</div>`).join("")}</div>
+    <div class="turnout"><b id="ballots">${p.ballots}</b> votes cast</div>
+  </div>`;
+}
+
+function resultsScene(p) {
+  const t = p.tally;
+  // Only winners (and anyone tied for the last seat) are revealed; everyone else is listed in
+  // ballot order, so neither counts nor ranking can be read off the screen.
+  const top = (o) => t.winners.includes(o.id) || t.tied.includes(o.id);
+  const rows = [...p.options.filter(top), ...p.options.filter((o) => !top(o))];
+  const winLabel = p.kind === "position" ? "Elected" : "Most votes";
+  const card = (o) => {
+    const win = t.winners.includes(o.id), tie = t.tied.includes(o.id);
+    return `<div class="result ${win || tie ? "win" : ""}">
+      ${win ? `<span class="badge">${winLabel}</span>` : tie ? `<span class="badge tie">Tie</span>` : ""}
+      <span class="name">${esc(o.label)}</span></div>`;
+  };
+  return `<div class="poll">
+    <div class="kicker">Results</div>
+    ${p.subtitle ? `<div class="eyebrow" style="font-size:3vh">${esc(p.subtitle)}</div>` : ""}
+    <h1 class="display" style="font-size:9vh">${esc(p.title)}</h1>
+    <div class="results">${rows.map(card).join("")}</div>
+    ${t.tie ? `<div class="notice">Tie for the last seat — a run-off vote is required</div>` : ""}
+  </div>`;
+}
+
+function awardScene(a) {
+  return `<div class="award"><div class="rays"></div>
+    <div class="arch">
+      <div class="kicker">Special Award</div>
+      <h2 class="display">${esc(a.title)}</h2>
+      <div class="to">presented to</div>
+      <div class="recipient">${esc(a.recipient)}</div>
+      ${a.blurb ? `<div class="blurb">${esc(a.blurb)}</div>` : ""}
+    </div></div>`;
+}
+
+function petals() {
+  for (let i = 0; i < 70; i++) {
+    const p = document.createElement("div");
+    p.className = "petal" + (i % 3 ? "" : " r");
+    p.style.left = Math.random() * 100 + "vw";
+    p.style.animationDuration = 4 + Math.random() * 5 + "s";
+    p.style.animationDelay = Math.random() * 2.5 + "s";
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 12000);
+  }
+}
+
+function draw(v) {
+  view = v;
+  // Scene identity: only re-animate when the scene really changes.
+  const p = v.poll;
+  const id = v.mode === "waiting" ? `w:${v.event.title}:${v.event.subtitle}:${v.checkinOpen}:${joinUrl(v)}`
+    : v.mode === "award" ? `a:${JSON.stringify(v.award)}`
+    : v.mode === "voting" ? `v:${p.id}:${p.status}`
+    : `r:${p.id}:${JSON.stringify(p.tally)}`;
+
+  if (id !== sceneKey) {
+    sceneKey = id;
+    const html = v.mode === "waiting" ? waitingScene(v) : v.mode === "voting" ? votingScene(p)
+      : v.mode === "results" ? resultsScene(p) : awardScene(v.award);
+    stage.innerHTML = `<div class="scene">${html}</div>`;
+    if (v.mode !== "waiting") stage.insertAdjacentHTML("beforeend", `<div class="corner">${UQ.logo()}</div>`);
+    if (v.mode === "award") petals();
+    if (v.mode === "waiting") drawQr(v);
+  }
+  // Live bits that update without re-animating.
+  if (v.mode === "waiting") { const c = stage.querySelector(".count b"); if (c) c.textContent = v.attendeeCount; }
+  if (v.mode === "voting") { const b = document.getElementById("ballots"); if (b) b.textContent = p.ballots; }
+}
+
+async function start() {
+  try { await UQ.post("/api/admin/login", {}, { "X-Admin-Key": key }); }
+  catch (err) { UQ.storage.del(KEY); return gate(err.status === 401 ? "" : err.message); }
+  UQ.stream(() => ({ role: "screen", key }), draw, (ok) => (document.getElementById("conn").hidden = ok));
+}
+
+const fs = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.());
+document.getElementById("fsBtn").onclick = fs;
+document.addEventListener("keydown", (e) => { if (e.key === "f" && e.target.tagName !== "INPUT") fs(); });
+
+key ? start() : gate();
+</script>
+</body>
+</html>

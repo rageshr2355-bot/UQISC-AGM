@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UQISC AGM — Voting Code Cards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Gloock&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/theme.css">
+<style>
+  /* 3 x 10 cards per A4 sheet = 30 per page, 300 codes = 10 pages */
+  @page { size: A4; margin: 10mm; }
+  :root { --ink: #4a0f1a; --accent: #a8792a; }
+  .toolbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+    padding: 14px 16px; background: rgba(43, 10, 16, 0.92); border-bottom: 1px solid var(--line); backdrop-filter: blur(6px); }
+  .toolbar .logo { width: 70px; }
+  .toolbar h1 { font-size: 26px; }
+  .toolbar .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar .input { min-height: 40px; width: 260px; }
+  .sheets { display: grid; justify-content: safe center; gap: 24px; padding: 24px 16px 60px; overflow-x: auto; }
+  .sheet { width: 190mm; height: 277mm; background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.5);
+    display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(10, 1fr); }
+  .card {
+    position: relative; border: 0.25mm dashed #c9b8a0; padding: 2.4mm 3mm; color: var(--ink);
+    display: grid; grid-template-columns: 1fr auto; grid-template-rows: 1fr auto; column-gap: 2mm; overflow: hidden;
+    background: linear-gradient(135deg, #fffaf0, #fff);
+  }
+  .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 1.6mm; background: var(--ink); }
+  .card .head { padding-left: 1.6mm; display: flex; flex-direction: column; justify-content: center; gap: 0.6mm; }
+  .card .logo { width: 15mm; color: var(--accent); }
+  .card .lbl { font-size: 6.4pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); }
+  .card .code { align-self: center; font-family: "Figtree", sans-serif; font-weight: 800; font-size: 21pt; letter-spacing: .14em; color: var(--ink);
+    border: 0.4mm solid var(--accent); border-radius: 1.6mm; padding: 0.6mm 1.4mm 0.6mm 2.6mm; line-height: 1.1; background: #fff; }
+  .card .foot { grid-column: 1 / -1; padding-left: 1.6mm; display: flex; justify-content: space-between; gap: 2mm; font-size: 5.6pt; color: #7a5a4f; margin-top: 0.6mm; white-space: nowrap; overflow: hidden; }
+  .card .foot b { color: var(--ink); }
+  .gate { width: min(420px, 92vw); margin: 12vh auto; padding: 70px 30px 34px; text-align: center; display: grid; gap: 16px; }
+  .gate .logo { margin: 0 auto; width: 120px; }
+  @media print {
+    body { background: #fff !important; }
+    .backdrop, .toolbar { display: none !important; }
+    .sheets { padding: 0; gap: 0; display: block; }
+    .sheet { box-shadow: none; break-after: page; }
+    .sheet:last-child { break-after: auto; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="backdrop" aria-hidden="true"></div>
+<div id="root"></div>
+<script src="/common.js"></script>
+<script>
+const KEY = "uqisc_agm_admin", SITE = "uqisc_agm_site";
+const root = document.getElementById("root");
+const esc = UQ.esc;
+// Allow /codes#key=... for automated printing; otherwise use the stored admin login.
+let key = new URLSearchParams(location.hash.slice(1)).get("key") || UQ.storage.get(KEY);
+let data = null;
+
+function gate(msg = "") {
+  root.innerHTML = `<form class="arch gate" id="gate">${UQ.logo()}
+    <h1 class="display" style="font-size:36px">Code cards</h1>
+    <p class="muted" style="margin:0">Enter the admin password to view and print the voting codes.</p>
+    <input class="input" type="password" id="pw" placeholder="Admin password" autofocus>
+    <p class="error-msg">${esc(msg)}</p><button class="btn primary">Show codes</button></form>`;
+  document.getElementById("gate").onsubmit = (e) => { e.preventDefault(); key = document.getElementById("pw").value; load(); };
+}
+
+async function load() {
+  const res = await fetch("/api/admin/codes?key=" + encodeURIComponent(key || "")).catch(() => null);
+  if (!res || !res.ok) return gate(res && res.status === 401 && key ? "Wrong password." : "");
+  UQ.storage.set(KEY, key);
+  data = await res.json();
+  draw();
+}
+
+function draw() {
+  const site = UQ.storage.get(SITE) || "";
+  const year = (data.event.subtitle.match(/\d{4}/) || [new Date().getFullYear()])[0];
+  const cards = data.codes.map((c, i) => `<div class="card">
+      <div class="head">${UQ.logo()}<div class="lbl">AGM ${esc(year)} · Voting code</div></div>
+      <div class="code">${esc(c)}</div>
+      <div class="foot"><span>${site ? `Check in at <b>${esc(site)}</b>` : "<b>One code · one vote</b> · don't share"}</span><span>#${String(i + 1).padStart(3, "0")}</span></div>
+    </div>`);
+  const sheets = [];
+  for (let i = 0; i < cards.length; i += 30) sheets.push(`<section class="sheet">${cards.slice(i, i + 30).join("")}</section>`);
+  UQ.render(root, `<div class="toolbar">
+      <div class="row">${UQ.logo()}<h1 class="display">Voting code cards</h1>
+        <span class="muted">${data.codes.length} codes · ${sheets.length} A4 pages · cut along the dashed lines</span></div>
+      <div class="row">
+        <input class="input" id="site" placeholder="Website to print on cards (optional)" value="${esc(site)}" data-reset="1">
+        <button class="btn primary" onclick="window.print()">Print</button>
+      </div></div>
+    <div class="sheets">${sheets.join("")}</div>`);
+}
+
+root.addEventListener("change", (e) => {
+  if (e.target.id === "site") { UQ.storage.set(SITE, e.target.value.trim()); draw(); }
+});
+
+load();
+</script>
+</body>
+</html>

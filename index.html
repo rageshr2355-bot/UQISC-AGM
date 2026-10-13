@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2b0a10">
+<title>UQISC AGM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Gloock&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/theme.css">
+<style>
+  body { min-height: 100dvh; display: flex; flex-direction: column; }
+  main { flex: 1; display: flex; justify-content: center; align-items: flex-start; padding: 28px 16px 24px; }
+  .arch { width: min(460px, 100%); padding: 64px 26px 30px; text-align: center; }
+  .arch .logo { margin: 0 auto 18px; width: 120px; }
+  h1.display { font-size: clamp(40px, 12vw, 54px); }
+  h2.display { font-size: clamp(30px, 9vw, 40px); margin-top: 6px; }
+  .lede { margin: 14px auto 0; max-width: 32ch; line-height: 1.5; }
+  form { display: grid; gap: 16px; margin-top: 26px; }
+  .code-input { text-align: center; font-size: 30px; font-weight: 700; letter-spacing: 0.4em; text-transform: uppercase; padding-left: 0.4em; }
+  .options { display: grid; gap: 10px; margin-top: 22px; text-align: left; }
+  .opt {
+    display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; border-radius: 14px;
+    background: rgba(20, 4, 7, 0.5); border: 1.5px solid var(--line); cursor: pointer; text-align: left;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .opt:hover { border-color: var(--gold-dim); }
+  .opt[aria-pressed="true"] { border-color: var(--gold); background: rgba(233, 185, 73, 0.14); }
+  .opt .tick {
+    flex: none; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--gold-dim);
+    display: grid; place-items: center; color: var(--maroon-950); font-size: 15px; font-weight: 800;
+  }
+  .opt[aria-pressed="true"] .tick { background: var(--gold); border-color: var(--gold); }
+  .opt .name { font-weight: 700; font-size: 18px; }
+  .opt .sub { font-size: 14px; color: var(--cream-dim); margin-top: 2px; }
+  .opt:disabled { opacity: 0.4; cursor: not-allowed; }
+  .rule { text-align: center; color: var(--gold); font-weight: 600; margin-top: 10px; }
+  .actions { display: grid; gap: 10px; margin-top: 22px; }
+  .sun-big { width: 92px; height: 92px; margin: 26px auto 6px; color: var(--gold); }
+  .sun-spin { animation: spin 30s linear infinite; transform-origin: center; }
+  .confirm-list { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .confirm-list li { padding: 12px; border-radius: 12px; background: rgba(233,185,73,.12); border: 1px solid var(--gold-dim); font-weight: 700; font-size: 18px; }
+  .check { width: 76px; height: 76px; border-radius: 50%; background: var(--gold); color: var(--maroon-950); display: grid; place-items: center; font-size: 40px; font-weight: 800; margin: 18px auto 8px; animation: pop .4s cubic-bezier(.2,1.6,.4,1) both; }
+  @keyframes pop { from { transform: scale(.3); opacity: 0; } }
+  footer { text-align: center; padding: 0 16px 18px; font-size: 13px; color: var(--cream-faint); }
+</style>
+</head>
+<body>
+<div class="backdrop" aria-hidden="true"></div>
+<div class="conn" id="conn" hidden><span class="dot"></span><span id="connText">Live</span></div>
+<main><section class="arch fade-in" id="app" aria-live="polite"><p class="muted" style="margin-top:40px">Connecting…</p></section></main>
+<footer id="foot"></footer>
+
+<script src="/common.js"></script>
+<script>
+const TOKEN_KEY = "uqisc_agm_token";
+let token = UQ.storage.get(TOKEN_KEY);
+let view = null, lastKey = "", selected = [], confirming = false, busy = false, error = "";
+const app = document.getElementById("app");
+const esc = UQ.esc;
+
+const sunSVG = `<svg class="sun-big" viewBox="0 0 100 100" aria-hidden="true"><g class="sun-spin">
+  ${Array.from({ length: 16 }, (_, i) => `<path d="M50 6 L54 22 L46 22Z" fill="currentColor" opacity="${i % 2 ? 0.55 : 1}" transform="rotate(${i * 22.5} 50 50)"/>`).join("")}
+  <circle cx="50" cy="50" r="22" fill="none" stroke="currentColor" stroke-width="3"/>
+  <circle cx="50" cy="50" r="13" fill="currentColor"/></g></svg>`;
+
+function render() {
+  if (!view) return;
+  const key = JSON.stringify([view, selected, confirming, busy, error]);
+  if (key === lastKey) return;
+  lastKey = key;
+  document.getElementById("foot").textContent = view.attendee ? `Checked in as ${view.attendee.name}` : "";
+  const head = UQ.logo();
+
+  if (!view.attendee) {
+    if (!view.checkinOpen) {
+      return UQ.render(app, `${head}<h1 class="display">Check-in closed</h1>
+        <p class="lede muted">Check-in for the ${esc(view.event.title)} has closed. If you're here in person, please see the committee at the front.</p>`);
+    }
+    return UQ.render(app, `${head}
+      <h1 class="display">${esc(view.event.title)}</h1>
+      <p class="lede muted">Welcome! Check in with your name and the personal voting code on the card you were given.</p>
+      <form id="joinForm" autocomplete="off">
+        <div class="field"><label for="name">Your full name</label>
+          <input class="input" id="name" maxlength="50" autocomplete="name" placeholder="Enter name" required></div>
+        <div class="field"><label for="code">Your voting code</label>
+          <input class="input code-input" id="code" maxlength="4" minlength="4" inputmode="text" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="····" required></div>
+        <p class="faint" style="font-size:13px;margin:-6px 0 0">Each code works once. Don't share yours — whoever uses it first gets the vote.</p>
+        <p class="error-msg" role="alert">${esc(error)}</p>
+        <button class="btn primary" ${busy ? "disabled" : ""}>${busy ? "Checking in…" : "Check in"}</button>
+      </form>`);
+  }
+
+  const p = view.poll;
+  if (!p) {
+    return UQ.render(app, `${head}
+      <p class="eyebrow gold">You're checked in</p>
+      <h1 class="display" style="margin-top:12px">Welcome, ${esc(view.attendee.name.split(" ")[0])}</h1>
+      ${sunSVG}
+      <p class="lede muted">Sit back and enjoy the meeting. When voting opens, the ballot will appear here on its own — keep this page open.</p>`);
+  }
+
+  if (view.myVote) {
+    const labels = view.myVote.map((id) => p.options.find((o) => o.id === id)?.label).filter(Boolean);
+    return UQ.render(app, `${head}
+      <p class="eyebrow gold">${esc(p.subtitle || "Vote")}</p>
+      <h2 class="display">${esc(p.title)}</h2>
+      <div class="check" aria-hidden="true">✓</div>
+      <p style="font-weight:700;font-size:20px;margin:6px 0 0">Vote recorded</p>
+      <p class="muted lede">You voted: <strong class="gold">${labels.map(esc).join(", ")}</strong></p>
+      <p class="faint lede" style="font-size:14px">Results will be shown on the big screen.</p>`);
+  }
+
+  const max = p.maxChoices;
+  if (confirming) {
+    const labels = selected.map((id) => p.options.find((o) => o.id === id)?.label);
+    return UQ.render(app, `${head}
+      <p class="eyebrow gold">Confirm your vote</p>
+      <h2 class="display">${esc(p.title)}</h2>
+      <ul class="confirm-list">${labels.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>
+      <p class="faint" style="font-size:14px;margin-top:14px">Votes are final and can't be changed.</p>
+      <p class="error-msg" role="alert">${esc(error)}</p>
+      <div class="actions">
+        <button class="btn primary" data-act="submit" ${busy ? "disabled" : ""}>${busy ? "Submitting…" : "Submit vote"}</button>
+        <button class="btn" data-act="back" ${busy ? "disabled" : ""}>Go back</button>
+      </div>`);
+  }
+
+  const full = selected.length >= max;
+  const optBtn = (o) => {
+    const on = selected.includes(o.id);
+    return `<button class="opt" data-opt="${esc(o.id)}" aria-pressed="${on}"
+      ${!on && full && max > 1 ? "disabled" : ""}>
+      <span class="tick">${on ? "✓" : ""}</span>
+      <span><div class="name">${esc(o.label)}</div>${o.sub ? `<div class="sub">${esc(o.sub)}</div>` : ""}</span></button>`;
+  };
+  UQ.render(app, `${head}
+    <p class="eyebrow gold"><span class="dot pulse" style="color:var(--ok);margin-right:6px"></span>Voting now open</p>
+    ${p.subtitle ? `<p class="muted" style="margin:10px 0 0;font-weight:600">${esc(p.subtitle)}</p>` : ""}
+    <h2 class="display">${esc(p.title)}</h2>
+    <p class="rule">${max > 1 ? `Choose up to ${max}` : "Choose one"}</p>
+    <div class="options">${p.options.map(optBtn).join("")}</div>
+    <div class="actions"><button class="btn primary" data-act="review" ${selected.length ? "" : "disabled"}>Review vote</button></div>`);
+}
+
+app.addEventListener("click", async (e) => {
+  const opt = e.target.closest("[data-opt]");
+  if (opt) {
+    const id = opt.dataset.opt, max = view.poll.maxChoices;
+    if (selected.includes(id)) selected = selected.filter((x) => x !== id);
+    else {
+      selected = max === 1 ? [id] : selected.length < max ? [...selected, id] : selected;
+    }
+    error = "";
+    return render();
+  }
+  const act = e.target.closest("[data-act]")?.dataset.act;
+  if (act === "review") { confirming = true; render(); }
+  if (act === "back") { confirming = false; error = ""; render(); }
+  if (act === "submit") {
+    busy = true; error = ""; render();
+    try {
+      await UQ.post("/api/vote", { token, pollId: view.poll.id, choices: selected });
+      view = { ...view, myVote: selected };
+    } catch (err) { error = err.message; }
+    busy = false; render();
+  }
+});
+
+app.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  busy = true; error = ""; render();
+  try {
+    const res = await UQ.post("/api/join", {
+      code: document.getElementById("code").value,
+      name: document.getElementById("name").value,
+      token,
+    });
+    token = res.token;
+    UQ.storage.set(TOKEN_KEY, token);
+    view = { ...view, attendee: { name: res.name } };
+    live.reconnect();
+    keepAwake();
+  } catch (err) { error = err.message; }
+  busy = false; render();
+});
+
+app.addEventListener("input", (e) => {
+  if (e.target.id === "code") e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+});
+
+let pollId = null;
+const live = UQ.stream(() => (token ? { role: "audience", token } : { role: "audience" }), (data) => {
+  if (!data.attendee && token) { token = null; UQ.storage.del(TOKEN_KEY); }
+  const newPoll = data.poll ? data.poll.id : null;
+  if (newPoll !== pollId) { pollId = newPoll; selected = []; confirming = false; error = ""; if (newPoll && navigator.vibrate) navigator.vibrate(120); }
+  view = data;
+  render();
+}, (ok) => {
+  const c = document.getElementById("conn");
+  c.hidden = ok; c.classList.toggle("down", !ok);
+  document.getElementById("connText").textContent = ok ? "Live" : "Reconnecting…";
+});
+
+// Keep the phone screen on so the ballot pops up without unlocking.
+async function keepAwake() {
+  try { if ("wakeLock" in navigator) await navigator.wakeLock.request("screen"); } catch {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && token) keepAwake(); });
+if (token) keepAwake();
+</script>
+</body>
+</html>

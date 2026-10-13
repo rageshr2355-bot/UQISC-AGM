@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UQISC AGM — Join QR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Gloock&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/theme.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  /* Printable A4 poster linking to the audience check-in page.
+     Uses this site's own address, or ?url=https://... to point somewhere else. */
+  @page { size: A4; margin: 0; }
+  body { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
+  .poster.arch { width: min(560px, 100%); padding: 90px 40px 44px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  .poster .logo { width: 150px; }
+  .poster h1 { font-size: clamp(40px, 10vw, 60px); }
+  .poster .sub { font-size: 18px; color: var(--cream-dim); margin: 0; }
+  .qr { background: var(--cream); padding: 18px; border-radius: 18px; line-height: 0; border: 3px solid var(--gold); }
+  .qr img, .qr canvas { width: min(300px, 64vw) !important; height: auto !important; }
+  .url { font-size: 18px; font-weight: 700; color: var(--gold); word-break: break-all; }
+  .steps { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; text-align: left; font-size: 16px; }
+  .steps li { display: flex; gap: 10px; align-items: baseline; }
+  .steps b { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--gold); color: var(--maroon-950); display: grid; place-items: center; font-size: 13px; }
+  .print { margin-top: 6px; }
+  @media print {
+    body { padding: 0; min-height: 100vh; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .print { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="backdrop" aria-hidden="true"></div>
+<main class="poster arch" id="poster"></main>
+<script src="/common.js"></script>
+<script>
+const target = new URLSearchParams(location.search).get("url") || location.origin + "/";
+const shown = target.replace(/^https?:\/\//, "").replace(/\/$/, "");
+document.getElementById("poster").innerHTML = `${UQ.logo()}
+  <h1 class="display">Scan to check in</h1>
+  <p class="sub">UQISC Annual General Meeting</p>
+  <div class="qr" id="qr"></div>
+  <div class="url">${UQ.esc(shown)}</div>
+  <ol class="steps">
+    <li><b>1</b>Scan the code with your phone camera</li>
+    <li><b>2</b>Enter your name</li>
+    <li><b>3</b>Enter the code on your voting card</li>
+  </ol>
+  <button class="btn primary print" onclick="window.print()">Print poster</button>`;
+if (location.hash === "#image") document.querySelector(".print").remove();  // for exporting as a picture
+if (window.QRCode) {
+  new QRCode(document.getElementById("qr"), { text: target, width: 600, height: 600, colorDark: "#2b0a10", colorLight: "#f7ecd6", correctLevel: QRCode.CorrectLevel.M });
+} else {
+  document.getElementById("qr").outerHTML = `<p class="error-msg">QR library didn't load — check the internet connection.</p>`;
+}
+</script>
+</body>
+</html>
